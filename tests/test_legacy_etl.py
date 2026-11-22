@@ -10,7 +10,6 @@ Run: python -m unittest discover -s tests -t . -v
 """
 
 import glob
-import math
 import os
 import random
 import shutil
@@ -61,11 +60,15 @@ def _random_price(rng):
     if kind == 3:
         return "%.17g" % rng.uniform(-1e6, 1e6)
     if kind == 4:
-        return "%.3e" % rng.uniform(0, 1e30)
+        return "%se%+d" % (rng.choice(["1", "-2.5", "0.005", "9.995", ".5", "5."]), rng.randrange(-60, 60))
     if kind == 5:
-        return rng.choice(["NaN", "Infinity", "-Infinity", "+1", ".5", "5.", "1e3", "1E-2",
-                           "0x1p4", "0X.8P1", "4.5d", "4.5F", "inf", "nan", "1_0", "1,0",
-                           " 2.5 ", "--1", "", "0x10", "1e", "e5", "\u0663"])
+        return rng.choice(["NaN", "Infinity", "-Infinity", "+1", ".5", "5.", "1e3", "1E-2", "-0",
+                           "-0.004", "-0.005", "0x1p4", "4.5d", "4.5F", "inf", "nan", "1_0", "1,0",
+                           " 2.5 ", "--1", "+-1", "", "0x10", "1e", "e5", ".", ".e1", "1.2.3",
+                           "1e+", "1e1.5", "\u0663", "\u0661.\u0665", "1e\u0662", "\uff15",
+                           "1e2147483647x", "1e2147483648", "1e-2147483648", "1e-2147483649",
+                           "0.5e-2147483647", "1e00000000002", "1e10000000000",
+                           "12345678901234567890.123456789012345678905", "\U0001D7D9"])
     if kind == 6:
         return "-%d.%02d" % (rng.randrange(10**4), rng.randrange(100))
     return "%d.%02d" % (rng.randrange(10**4), rng.randrange(100))
@@ -76,7 +79,7 @@ def _random_quantity(rng):
     if kind == 0:
         return rng.choice(["2147483647", "2147483648", "-2147483648", "-2147483649", "+7",
                            "-0", "007", "3.0", "1e2", "", " 4 ", "\u0661\u0662", "\uff11",
-                           "0x10", "1_000", "abc"])
+                           "0x10", "1_000", "abc", "\U0001D7D9"])
     if kind == 1:
         return str(rng.randrange(-(2**31), 2**31))
     return str(rng.randrange(0, 500))
@@ -200,38 +203,40 @@ class HelperTest(unittest.TestCase):
         self.assertEqual(legacy_etl.pad_right("\U0001F600", 4), "\U0001F600  ")
         self.assertEqual(legacy_etl.pad_right("abcde", 3), "abcde")
 
-    def test_split_line_drops_empty_tokens(self):
-        self.assertEqual(legacy_etl.split_line(",a,,b,c,d,e,"), ["a", "b", "c", "d", "e"])
+    def test_split_line_keeps_empty_fields(self):
+        self.assertEqual(legacy_etl.split_line("1,,p,3,"), ["1", "", "p", "3", ""])
+        self.assertIsNone(legacy_etl.split_line(",a,b,c,d,e,"))
         self.assertIsNone(legacy_etl.split_line("a,b,c,d"))
 
     def test_parse_java_int(self):
         self.assertEqual(legacy_etl.parse_java_int("+7"), 7)
         self.assertEqual(legacy_etl.parse_java_int("-2147483648"), -(2**31))
-        for bad in ["2147483648", "1_000", "", "+", "3.0", " 4"]:
+        for bad in ["2147483648", "1_000", "", "+", "3.0", " 4", "\U0001D7D9"]:
             with self.assertRaises(ValueError):
                 legacy_etl.parse_java_int(bad)
 
-    def test_parse_java_double(self):
-        self.assertEqual(legacy_etl.parse_java_double("4.5d"), 4.5)
-        self.assertEqual(legacy_etl.parse_java_double("0x1.8p3"), 12.0)
-        self.assertEqual(legacy_etl.parse_java_double("-Infinity"), -math.inf)
-        self.assertTrue(math.isnan(legacy_etl.parse_java_double("NaN")))
-        self.assertEqual(legacy_etl.parse_java_double("0x1p99999"), math.inf)
-        for bad in ["inf", "nan", "1_0", "0x10", "", "1e", "."]:
-            with self.assertRaises(ValueError):
-                legacy_etl.parse_java_double(bad)
+    def test_parse_java_bigdecimal(self):
+        parse = legacy_etl.parse_java_bigdecimal
+        self.assertEqual(str(parse("+4.50")), "4.50")
+        self.assertEqual(str(parse("5.")), "5")
+        self.assertEqual(str(parse("-.5E3")), "-5E+2")
+        self.assertEqual(str(parse("\u0661.\u0665")), "1.5")
+        self.assertEqual(str(parse("1e00000000002")), "1E+2")
+        for bad in ["NaN", "Infinity", "4.5d", "0x10", "1_0", "", ".", "1e", "1e+", "e5",
+                    "1.2.3", " 1", "+-1", "\U0001D7D9", "1.\U0001D7D9", "1e10000000000", "1e2147483648", "1e-2147483648"]:
+            with self.assertRaises(ValueError, msg=bad):
+                parse(bad)
 
-    def test_format_money(self):
+    def test_round_and_format_money(self):
         cases = {
-            0.125: "0.12", 0.135: "0.14", 2.675: "2.67", 1234567.5: "1,234,567.50",
-            -0.001: "-0.00", math.inf: "\u221e", -math.inf: "-\u221e", math.nan: "NaN",
-            # JDK 17 keeps more digits than Python's repr for these.
-            1236448990019046656.0: "1,236,448,990,019,046,660.00",
-            9.45431641302464e18: "9,454,316,413,024,641,000.00",
+            "0.125": "0.13", "0.135": "0.14", "2.675": "2.68", "-2.675": "-2.68",
+            "-0.004": "0.00", "-0.005": "-0.01", "1234567.5": "1,234,567.50",
+            "1e20": "100,000,000,000,000,000,000.00",
         }
         for value, expected in cases.items():
             with self.subTest(value=value):
-                self.assertEqual(legacy_etl.format_money(value), expected)
+                amount = legacy_etl.round_cents(legacy_etl.parse_java_bigdecimal(value))
+                self.assertEqual(legacy_etl.format_money(amount), expected)
 
 
 if __name__ == "__main__":

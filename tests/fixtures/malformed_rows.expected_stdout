@@ -1,11 +1,10 @@
 REVENUE BY REGION
 =================
-North               20.50
+North               19.50
 West                2.00
-South               1.00
 north               1.00
 -----------------
-TOTAL               24.50
+TOTAL               22.50
 
-Rows loaded:  6
-Rows skipped: 5
+Rows loaded:  4
+Rows skipped: 7
