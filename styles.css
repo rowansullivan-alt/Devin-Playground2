@@ -71,3 +71,20 @@ tr.reorder {
   background: #ffe3e3;
   color: #ab091e;
 }
+
+.table-wrap {
+  overflow-x: auto;
+  border-radius: 8px;
+}
+
+@media (max-width: 480px) {
+  body {
+    padding: 1rem 0.5rem;
+  }
+
+  th,
+  td {
+    padding: 0.5rem 0.5rem;
+    font-size: 0.9rem;
+  }
+}
