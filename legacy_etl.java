@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.text.DecimalFormat;
 import java.util.Enumeration;
 import java.util.Hashtable;
-import java.util.StringTokenizer;
 import java.util.Vector;
 
 class LegacyEtl {
@@ -101,15 +100,9 @@ class LegacyEtl {
     }
 
     private static String[] splitLine(String line) {
-        StringTokenizer st = new StringTokenizer(line, ",");
-        if (st.countTokens() != NUM_COLUMNS) {
+        String[] fields = line.split(",", -1);
+        if (fields.length != NUM_COLUMNS) {
             return null;
-        }
-        String[] fields = new String[NUM_COLUMNS];
-        int i = 0;
-        while (st.hasMoreTokens()) {
-            fields[i] = st.nextToken();
-            i++;
         }
         return fields;
     }
