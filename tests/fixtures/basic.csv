@@ -1,0 +1,7 @@
+store_id,region,product,quantity,unit_price
+1001,North,Widget,3,4.50
+1002,South,Gadget,10,2.25
+1003,North,Gizmo,1,199.99
+1004,East,Widget,7,4.50
+1005,South,Widget,2,4.50
+1006,West,Doohickey,1000,1234.56
