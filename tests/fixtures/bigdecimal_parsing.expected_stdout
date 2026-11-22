@@ -1,0 +1,17 @@
+REVENUE BY REGION
+=================
+Plain               13.50
+Signs               2.75
+Dots                5.50
+Exp                 600.03
+Unicode             1.50
+NegZero             0.00
+HalfUp              2.68
+Precise             12,345,678,901,234,567,890.42
+                    1.00
+Empty store         1.00
+-----------------
+TOTAL               12,345,678,901,234,568,518.37
+
+Rows loaded:  20
+Rows skipped: 18
