@@ -14,6 +14,7 @@
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.util.Enumeration;
 import java.util.Hashtable;
@@ -63,10 +64,10 @@ class LegacyEtl {
 
                 String region = fields[COL_REGION].trim();
                 int quantity;
-                double unitPrice;
+                BigDecimal unitPrice;
                 try {
                     quantity = Integer.parseInt(fields[COL_QUANTITY].trim());
-                    unitPrice = Double.parseDouble(fields[COL_UNIT_PRICE].trim());
+                    unitPrice = new BigDecimal(fields[COL_UNIT_PRICE].trim());
                 } catch (NumberFormatException e) {
                     System.err.println("WARNING: line " + lineNumber
                             + " has bad number, skipped");
@@ -74,13 +75,13 @@ class LegacyEtl {
                     continue;
                 }
 
-                double revenue = quantity * unitPrice;
-                Double current = (Double) totals.get(region);
+                BigDecimal revenue = unitPrice.multiply(new BigDecimal(quantity));
+                BigDecimal current = (BigDecimal) totals.get(region);
                 if (current == null) {
-                    current = new Double(0.0);
+                    current = new BigDecimal("0");
                     regionOrder.addElement(region);
                 }
-                totals.put(region, new Double(current.doubleValue() + revenue));
+                totals.put(region, current.add(revenue));
                 rowsLoaded++;
             }
         } catch (IOException e) {
@@ -110,22 +111,26 @@ class LegacyEtl {
     private static void printReport(Hashtable totals, Vector regionOrder,
                                     int rowsLoaded, int rowsSkipped) {
         DecimalFormat money = new DecimalFormat("#,##0.00");
-        double grandTotal = 0.0;
+        BigDecimal grandTotal = new BigDecimal("0");
 
         System.out.println("REVENUE BY REGION");
         System.out.println("=================");
         Enumeration e = regionOrder.elements();
         while (e.hasMoreElements()) {
             String region = (String) e.nextElement();
-            double amount = ((Double) totals.get(region)).doubleValue();
-            grandTotal = grandTotal + amount;
-            System.out.println(padRight(region, 20) + money.format(amount));
+            BigDecimal amount = (BigDecimal) totals.get(region);
+            grandTotal = grandTotal.add(amount);
+            System.out.println(padRight(region, 20) + money.format(roundCents(amount)));
         }
         System.out.println("-----------------");
-        System.out.println(padRight("TOTAL", 20) + money.format(grandTotal));
+        System.out.println(padRight("TOTAL", 20) + money.format(roundCents(grandTotal)));
         System.out.println();
         System.out.println("Rows loaded:  " + rowsLoaded);
         System.out.println("Rows skipped: " + rowsSkipped);
+    }
+
+    private static BigDecimal roundCents(BigDecimal amount) {
+        return amount.setScale(2, BigDecimal.ROUND_HALF_UP);
     }
 
     private static String padRight(String s, int width) {
